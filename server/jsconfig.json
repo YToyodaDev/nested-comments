@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "checkJs": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "*": ["node_modules/*"]
+    }
+  },
+  "include": ["server.js", "prisma/**/*", "src/**/*", "../server.js"],
+  "exclude": ["node_modules", "**/*.spec.js"]
+}
