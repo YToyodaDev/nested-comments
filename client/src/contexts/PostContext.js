@@ -1,51 +1,93 @@
-import { createContext, useContext, useMemo, useState, useEffect } from 'react'
-
+import {
+    createContext,
+    useContext,
+    useReducer,
+    useEffect,
+    useMemo,
+} from 'react'
+import { useParams } from 'react-router-dom'
+import { useAsync } from '../hooks/useAsync'
+import { getPost } from '../api/posts'
 import {
     createComment,
     deleteComment,
     toggleCommentLike,
     updateComment,
 } from '../api/comments'
-import { useParams } from 'react-router-dom'
-import { useAsync, useAsyncFn } from '../hooks/useAsync'
-import { getPost } from '../api/posts'
+import { executeApiCall } from '../api/apiUtils'
 
 const Context = createContext()
+
+const actionTypes = {
+    SET_COMMENTS: 'SET_COMMENTS',
+    ADD_COMMENT: 'ADD_COMMENT',
+    UPDATE_COMMENT: 'UPDATE_COMMENT',
+    DELETE_COMMENT: 'DELETE_COMMENT',
+    TOGGLE_COMMENT_LIKE: 'TOGGLE_COMMENT_LIKE',
+}
+
+const initialState = {
+    comments: [],
+}
+
+function postReducer(state, action) {
+    switch (action.type) {
+        case actionTypes.SET_COMMENTS:
+            return { ...state, comments: action.payload }
+        case actionTypes.ADD_COMMENT:
+            return { ...state, comments: [action.payload, ...state.comments] }
+        case actionTypes.UPDATE_COMMENT:
+            return {
+                ...state,
+                comments: state.comments.map((comment) =>
+                    comment.id === action.payload.id
+                        ? { ...comment, message: action.payload.message }
+                        : comment
+                ),
+            }
+        case actionTypes.DELETE_COMMENT:
+            return {
+                ...state,
+                comments: state.comments.filter(
+                    (comment) => comment.id !== action.payload
+                ),
+            }
+        case actionTypes.TOGGLE_COMMENT_LIKE:
+            return {
+                ...state,
+                comments: state.comments.map((comment) =>
+                    comment.id === action.payload.id
+                        ? {
+                              ...comment,
+                              likeCount:
+                                  comment.likeCount +
+                                  (action.payload.addLike ? 1 : -1),
+                              likedByMe: action.payload.addLike,
+                          }
+                        : comment
+                ),
+            }
+        default:
+            return state
+    }
+}
 
 function PostProvider({ children }) {
     const { id } = useParams()
     const { loading, error, value: post } = useAsync(() => getPost(id), [id])
-    const [comments, setComments] = useState([])
+    const [state, dispatch] = useReducer(postReducer, initialState)
 
     const commentsByParentId = useMemo(() => {
         const group = {}
-        comments.forEach((comment) => {
+        state.comments.forEach((comment) => {
             group[comment.parentId] ||= []
             group[comment.parentId].push(comment)
         })
         return group
-    }, [comments])
+    }, [state.comments])
 
-    async function executeApiCall(
-        apiFunction,
-        setIsLoading = undefined,
-        setError = () => null
-    ) {
-        setIsLoading(true)
-        try {
-            const data = await apiFunction()
-            setError(null)
-            return data
-        } catch (error) {
-            setError(error)
-            return Promise.reject(error)
-        } finally {
-            setIsLoading(false)
-        }
-    }
-
-    function onCommentReply(args, setIsLoading, setError) {
-        return executeApiCall(
+    const onCommentCreate = async (args, setIsLoading, setError) => {
+        const comment = await executeApiCall(
             () =>
                 createComment({
                     postId: args.postId,
@@ -54,18 +96,12 @@ function PostProvider({ children }) {
                 }),
             setIsLoading,
             setError
-        ).then((comment) => {
-            createLocalComment(comment)
-        })
+        )
+        dispatch({ type: actionTypes.ADD_COMMENT, payload: comment })
     }
 
-    function createLocalComment(comment) {
-        setComments((prevComments) => {
-            return [comment, ...prevComments]
-        })
-    }
-    function onCommentUpdate(args, setIsLoading, setError) {
-        return executeApiCall(
+    const onCommentUpdate = async (args, setIsLoading, setError) => {
+        const comment = await executeApiCall(
             () =>
                 updateComment({
                     id: args.id,
@@ -74,64 +110,39 @@ function PostProvider({ children }) {
                 }),
             setIsLoading,
             setError
-        ).then((comment) => {
-            updateLocalComment(args.id, comment.message)
+        )
+        dispatch({
+            type: actionTypes.UPDATE_COMMENT,
+            payload: { id: args.id, message: comment.message },
         })
     }
 
-    function updateLocalComment(id, message) {
-        setComments((prevComments) => {
-            return prevComments.map((comment) => {
-                if (comment.id === id) {
-                    return { ...comment, message }
-                } else {
-                    return comment
-                }
-            })
-        })
-    }
-    function onCommentDelete(args, setIsLoading, setError) {
-        return executeApiCall(
+    const onCommentDelete = async (args, setIsLoading, setError) => {
+        await executeApiCall(
             () => deleteComment({ id: args.id, postId: args.postId }),
             setIsLoading,
             setError
-        ).then((comment) => deleteLocalComment(comment.id))
+        )
+        dispatch({ type: actionTypes.DELETE_COMMENT, payload: args.id })
     }
 
-    function deleteLocalComment(id) {
-        setComments((prev) => {
-            return prev.filter((comment) => comment.id !== id)
+    const onToggleCommentLike = async (args, setIsLoading) => {
+        const { addLike } = await executeApiCall(
+            () => toggleCommentLike({ id: args.id, postId: args.postId }),
+            setIsLoading
+        )
+        dispatch({
+            type: actionTypes.TOGGLE_COMMENT_LIKE,
+            payload: { id: args.id, addLike },
         })
     }
 
-    function onToggleCommentLike(args, setIsLoading) {
-        return executeApiCall(
-            () => toggleCommentLike({ id: args.id, postId: args.postId }),
-            setIsLoading
-        ).then(({ addLike }) => toggleLocalCommentLike(args.id, addLike))
-    }
-
-    function toggleLocalCommentLike(id, addLike) {
-        setComments((prevComments) =>
-            prevComments.map((comment) =>
-                id === comment.id
-                    ? {
-                          ...comment,
-                          likeCount: comment.likeCount + (addLike ? 1 : -1),
-                          likedByMe: addLike,
-                      }
-                    : comment
-            )
-        )
-    }
-
-    function getReplies(parentId) {
-        return commentsByParentId[parentId]
-    }
+    const getReplies = (parentId) => commentsByParentId[parentId] || []
 
     useEffect(() => {
-        if (post?.comments == null) return
-        setComments(post.comments)
+        if (post?.comments) {
+            dispatch({ type: actionTypes.SET_COMMENTS, payload: post.comments })
+        }
     }, [post])
 
     return (
@@ -140,14 +151,10 @@ function PostProvider({ children }) {
                 post: { id, ...post },
                 rootComments: commentsByParentId[null],
                 getReplies,
-                createLocalComment,
-                updateLocalComment,
-                deleteLocalComment,
-                toggleLocalCommentLike,
-                onToggleCommentLike,
-                onCommentDelete,
+                onCommentCreate,
                 onCommentUpdate,
-                onCommentReply,
+                onCommentDelete,
+                onToggleCommentLike,
             }}
         >
             {loading ? (
@@ -163,7 +170,7 @@ function PostProvider({ children }) {
 
 function usePost() {
     const context = useContext(Context)
-    if (!context) return console.log('usePost was called outside the context ')
+    if (!context) throw new Error('usePost must be used within a PostProvider')
     return context
 }
 

@@ -4,14 +4,14 @@ import { CommentForm } from './CommentForm'
 import { useCallback, useState } from 'react'
 
 export function Post() {
-    const { post, rootComments, onCommentReply } = usePost()
+    const { post, rootComments, onCommentCreate } = usePost()
 
     const [isCreating, setIsCreating] = useState(false)
     const [errorCreating, setErrorCreating] = useState(null)
 
     const handleReply = useCallback(
         (message) => {
-            return onCommentReply(
+            return onCommentCreate(
                 { id: null, postId: post.id, message },
                 setIsCreating,
                 setErrorCreating

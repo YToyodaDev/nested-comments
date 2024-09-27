@@ -43,7 +43,7 @@ export function Comment({
         onToggleCommentLike,
         onCommentDelete,
         onCommentUpdate,
-        onCommentReply,
+        onCommentCreate,
     } = usePost()
 
     const childComments = getReplies(id)
@@ -51,7 +51,7 @@ export function Comment({
 
     const handleReply = useCallback(
         (message) => {
-            return onCommentReply(
+            return onCommentCreate(
                 { id, postId, message },
                 setIsCreating,
                 setErrorCreating

@@ -22,11 +22,11 @@ function useAsyncInternal(func, dependencies, initialLoading = false) {
         return func(...params)
             .then((data) => {
                 setValue(data)
-                setError(undefined)
+                setError(null)
                 return data
             })
             .catch((error) => {
-                setValue(undefined)
+                setValue(null)
                 setError(error)
                 return Promise.reject(error)
             })
