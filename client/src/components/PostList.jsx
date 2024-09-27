@@ -1,4 +1,4 @@
-import { getPosts } from '../services/posts'
+import { getPosts } from '../api/posts'
 import { useAsync } from '../hooks/useAsync'
 
 export function PostList() {

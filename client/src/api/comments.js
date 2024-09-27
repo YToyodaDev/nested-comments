@@ -1,4 +1,4 @@
-import { makeRequest } from './makeRequest'
+import { makeRequest } from './apiClient'
 
 export function createComment({ postId, message, parentId }) {
     return makeRequest(`posts/${postId}/comments`, {

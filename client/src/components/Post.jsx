@@ -1,23 +1,24 @@
 import { usePost } from '../contexts/PostContext'
 import { CommentList } from './CommentList'
 import { CommentForm } from './CommentForm'
-import { useAsyncFn } from '../hooks/useAsync'
-import { createComment } from '../services/comments'
+import { useCallback, useState } from 'react'
 
 export function Post() {
-    const { post, rootComments, createLocalComment } = usePost()
-    const {
-        loading,
-        error,
-        execute: createCommentFn,
-    } = useAsyncFn(createComment)
+    const { post, rootComments, onCommentReply } = usePost()
 
-    function onCommentCreate(message) {
-        return createCommentFn({
-            postId: post.id,
-            message,
-        }).then(createLocalComment)
-    }
+    const [isCreating, setIsCreating] = useState(false)
+    const [errorCreating, setErrorCreating] = useState(null)
+
+    const handleReply = useCallback(
+        (message) => {
+            return onCommentReply(
+                { id: null, postId: post.id, message },
+                setIsCreating,
+                setErrorCreating
+            )
+        },
+        [post.Id, setIsCreating, setErrorCreating]
+    )
 
     return (
         <>
@@ -26,9 +27,9 @@ export function Post() {
             <h3 className="comments-title">Comments</h3>
             <section>
                 <CommentForm
-                    loading={loading}
-                    error={error}
-                    onSubmit={onCommentCreate}
+                    loading={isCreating}
+                    error={errorCreating}
+                    onSubmit={handleReply}
                 />
                 {rootComments != null && rootComments.length > 0 && (
                     <div className="mt-4">

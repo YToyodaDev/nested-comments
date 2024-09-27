@@ -8,7 +8,6 @@ function App() {
         <div className="container">
             <Routes>
                 <Route path="/" element={<PostList />} />
-
                 <Route
                     path="/posts/:id"
                     element={

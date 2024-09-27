@@ -2,24 +2,19 @@ import { IconBtn } from './IconBtn'
 import { FaEdit, FaHeart, FaRegHeart, FaReply, FaTrash } from 'react-icons/fa'
 import { usePost } from '../contexts/PostContext'
 import { CommentList } from './CommentList'
-import { useState } from 'react'
-import { useAsyncFn } from '../hooks/useAsync'
-import {
-    createComment,
-    deleteComment,
-    toggleCommentLike,
-    updateComment,
-} from '../services/comments'
+import { useState, useCallback, useEffect, useRef } from 'react'
+
 import { CommentForm } from './CommentForm'
 import { useUser } from '../hooks/useUser'
 
+// eslint-disable-next-line no-undef
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
 })
 
 export function Comment({
-    id,
+    id, // this comment id
     message,
     user,
     createdAt,
@@ -27,52 +22,62 @@ export function Comment({
     likedByMe,
 }) {
     const [areChildrenHidden, setAreChildrenHidden] = useState(false)
+
     const [isReplying, setIsReplying] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
+
+    const [isCreating, setIsCreating] = useState(false)
+    const [errorCreating, setErrorCreating] = useState(null)
+
+    const [isUpdating, setIsUpdating] = useState(false)
+    const [errorUpdating, setErrorUpdating] = useState(null)
+
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [errorDeleting, setErrorDeleting] = useState(null)
+
+    const [isLiking, setIsLiking] = useState(false)
+
     const {
-        post,
+        post: { id: postId },
         getReplies,
-        createLocalComment,
-        updateLocalComment,
-        deleteLocalComment,
-        toggleLocalCommentLike,
+        onToggleCommentLike,
+        onCommentDelete,
+        onCommentUpdate,
+        onCommentReply,
     } = usePost()
-    const createCommentFn = useAsyncFn(createComment)
-    const updateCommentFn = useAsyncFn(updateComment)
-    const deleteCommentFn = useAsyncFn(deleteComment)
-    const toggleCommentLikeFn = useAsyncFn(toggleCommentLike)
+
     const childComments = getReplies(id)
     const currentUser = useUser()
 
-    function onCommentReply(message) {
-        return createCommentFn
-            .execute({ postId: post.id, message, parentId: id })
-            .then((comment) => {
-                setIsReplying(false)
-                createLocalComment(comment)
-            })
-    }
+    const handleReply = useCallback(
+        (message) => {
+            return onCommentReply(
+                { id, postId, message },
+                setIsCreating,
+                setErrorCreating
+            ).then(() => setIsReplying(false))
+        },
+        [id, postId, setIsCreating, setErrorCreating]
+    )
 
-    function onCommentUpdate(message) {
-        return updateCommentFn
-            .execute({ postId: post.id, message, id })
-            .then((comment) => {
-                setIsEditing(false)
-                updateLocalComment(id, comment.message)
-            })
-    }
+    const handleEdit = useCallback(
+        (message) => {
+            return onCommentUpdate(
+                { id, postId, message },
+                setIsUpdating,
+                setErrorUpdating
+            ).then(() => setIsEditing(false))
+        },
+        [id, postId, setIsUpdating, setErrorUpdating]
+    )
 
-    function onCommentDelete() {
-        return deleteCommentFn
-            .execute({ postId: post.id, id })
-            .then((comment) => deleteLocalComment(comment.id))
-    }
+    const handleDelete = useCallback(() => {
+        return onCommentDelete({ id, postId }, setIsDeleting, setErrorDeleting)
+    }, [id, postId, setIsDeleting, setErrorDeleting])
 
-    function onToggleCommentLike() {
-        return toggleCommentLikeFn
-            .execute({ id, postId: post.id })
-            .then(({ addLike }) => toggleLocalCommentLike(id, addLike))
-    }
+    const handleLike = useCallback(() => {
+        return onToggleCommentLike({ id, postId }, setIsLiking)
+    }, [id, postId, setIsLiking])
 
     return (
         <>
@@ -87,17 +92,17 @@ export function Comment({
                     <CommentForm
                         autoFocus
                         initialValue={message}
-                        onSubmit={onCommentUpdate}
-                        loading={updateCommentFn.loading}
-                        error={updateCommentFn.error}
+                        onSubmit={handleEdit}
+                        loading={isUpdating}
+                        error={errorUpdating}
                     />
                 ) : (
                     <div className="message">{message}</div>
                 )}
                 <div className="footer">
                     <IconBtn
-                        onClick={onToggleCommentLike}
-                        disabled={toggleCommentLikeFn.loading}
+                        onClick={handleLike}
+                        disabled={isLiking}
                         Icon={likedByMe ? FaHeart : FaRegHeart}
                         aria-label={likedByMe ? 'Unlike' : 'Like'}
                     >
@@ -118,8 +123,8 @@ export function Comment({
                                 aria-label={isEditing ? 'Cancel Edit' : 'Edit'}
                             />
                             <IconBtn
-                                disabled={deleteCommentFn.loading}
-                                onClick={onCommentDelete}
+                                disabled={isDeleting}
+                                onClick={handleDelete}
                                 Icon={FaTrash}
                                 aria-label="Delete"
                                 color="danger"
@@ -127,19 +132,17 @@ export function Comment({
                         </>
                     )}
                 </div>
-                {deleteCommentFn.error && (
-                    <div className="error-msg mt-1">
-                        {deleteCommentFn.error}
-                    </div>
+                {errorDeleting && (
+                    <div className="error-msg mt-1">{errorDeleting}</div>
                 )}
             </div>
             {isReplying && (
                 <div className="mt-1 ml-3">
                     <CommentForm
                         autoFocus
-                        onSubmit={onCommentReply}
-                        loading={createCommentFn.loading}
-                        error={createCommentFn.error}
+                        onSubmit={handleReply}
+                        loading={isCreating}
+                        error={errorCreating}
                     />
                 </div>
             )}
